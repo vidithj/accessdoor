@@ -46,15 +46,15 @@ func main() {
 		metricsPort          = flag.Int("metrics.port", 8092, "HTTP metrics listen address (Default 8082)")
 		dataType             = flag.String("service.datatype", "test", "default Test/qa")
 		consulAddr           = flag.String("consul.addr", "localhost:8500", "consul address (Default localhost:8500)")
-		serverTimeout        = flag.Int64("service.timeout", 20000, "service timeout in milliseconds")
+		serverTimeout        = flag.Int64("service.timeout", 200000, "service timeout in milliseconds")
 		sysLogAddress        = flag.String("syslog.address", "localhost:514", "default location for the syslogger")
 		usersgetuserURL      = flag.String("proxy.getuserurl", "/users/v1/getuser", "user proxy url")
-		usersauthenticateURL = flag.String("proxy.authenticateurl", "/users/v1/updateuseraccess", "user proxy url")
-		usersupdateaccessURL = flag.String("proxy.updatedaccess", "/users/v1/authenticate", "user proxy url")
+		usersauthenticateURL = flag.String("proxy.authenticateurl", "/users/v1/authenticate", "user proxy url")
+		usersupdateaccessURL = flag.String("proxy.updatedaccess", "/users/v1/updateuseraccess", "user proxy url")
 		eventsupdatURL       = flag.String("proxy.eventupdate", "/events/v1/updateevent", "events proxy url")
 		geteventsURL         = flag.String("proxy.getevent", "/events/v1/getevents", "events proxy url")
 		maxAttempts          = flag.Int("outbound.service.attempts", 1, "max attempts for API")
-		apiMaxTime           = flag.Int("outbound.service.maxtime", 50000, "maxTime for API in milliseconds")
+		apiMaxTime           = flag.Int("outbound.service.maxtime", 500000, "maxTime for API in milliseconds")
 	)
 	flag.Parse()
 	errs := make(chan error)
@@ -68,7 +68,7 @@ func main() {
 
 	var logger log.Logger
 	{
-		logger = log.NewJSONLogger(sysLogger)
+		logger = log.NewJSONLogger(os.Stdout)
 		logger = log.With(logger, "serviceName", *serviceName)
 		logger = log.With(logger, "ip", *httpAddr)
 		logger = log.With(logger, "ts", log.DefaultTimestampUTC)

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	eventmodel "events/model"
+	"strings"
 	"time"
 	usermodel "users/model"
 
@@ -57,25 +58,29 @@ func (s baseService) UpdateUserAccess(ctx context.Context, req usermodel.UpdateA
 		return err
 	}
 	if userinfo.IsAdmin {
-		return s.usersService.UpdateUserAccess(ctx, req)
+		_, err := s.usersService.UpdateUserAccess(ctx, req)
+		if err != nil {
+			return err
+		}
 	} else {
 		return errors.New("only admin users can update access")
 	}
+	return nil
 }
 func (s baseService) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (bool, error) {
 	hasaccess, err := s.usersService.DoorAuthenticate(ctx, req)
 	if err != nil {
 		return false, err
 	}
-	if hasaccess {
+	if !strings.Contains(hasaccess, "not") {
 		s.eventsService.UpdateEvents(ctx, eventmodel.UpdateEventRequest{
 			Username: req.Username,
 			Event: map[string]int64{
 				req.AccessDoor: time.Now().Unix(),
 			},
 		})
-		return hasaccess, errors.New("access granted to " + req.AccessDoor)
+		return true, nil
 	} else {
-		return hasaccess, errors.New("User does not have access to " + req.AccessDoor)
+		return false, errors.New("User does not have access to " + req.AccessDoor)
 	}
 }

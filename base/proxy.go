@@ -133,8 +133,8 @@ func NewUsersProxy(ctx context.Context, getuserconfig, authenticateuserconfig, u
 
 type UsersService interface {
 	GetUser(ctx context.Context, username string) (usermodel.User, error)
-	UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) error
-	DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (bool, error)
+	UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (string, error)
+	DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (string, error)
 }
 
 type usersService struct {
@@ -152,19 +152,20 @@ func (s usersService) GetUser(ctx context.Context, username string) (usermodel.U
 	}
 	return response.(usermodel.User), nil
 }
-func (s usersService) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) error {
-	_, err := s.UpdateUserAccessEndpoint(ctx, req)
+func (s usersService) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (string, error) {
+	resp, err := s.UpdateUserAccessEndpoint(ctx, req)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return resp.(string), nil
 }
-func (s usersService) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (bool, error) {
+func (s usersService) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (string, error) {
 	response, err := s.DoorAuthenticateEndpoint(ctx, req)
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	return response.(bool), nil
+
+	return response.(string), nil
 }
 func encodegetUsersInfoRequest(ctx context.Context, r *http.Request, req interface{}) error {
 	setRequestHeaders(ctx, r, req)
@@ -191,9 +192,9 @@ func decodeGetUsersResponse(_ context.Context, r *http.Response) (interface{}, e
 func decodeAuthenticateUsersResponse(_ context.Context, r *http.Response) (interface{}, error) {
 	defer r.Body.Close()
 	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Status code incorrect for AuthenticateUser. Expected: %v received %v", http.StatusOK, r.StatusCode)
+		return false, fmt.Errorf("Status code incorrect for AuthenticateUser. Expected: %v received %v", http.StatusOK, r.StatusCode)
 	}
-	var response bool
+	var response string
 	err := json.NewDecoder(r.Body).Decode(&response)
 	return response, err
 }

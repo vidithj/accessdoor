@@ -95,14 +95,14 @@ func (s userServiceInstrumentingService) GetUser(ctx context.Context, username s
 	return s.next.GetUser(ctx, username)
 }
 
-func (s userServiceInstrumentingService) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (resp bool, err error) {
+func (s userServiceInstrumentingService) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (resp string, err error) {
 	defer func(begin time.Time) {
 		s.is.instrument(begin, "DoorAuthenticate", err)
 	}(time.Now())
 	return s.next.DoorAuthenticate(ctx, req)
 }
 
-func (s userServiceInstrumentingService) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (err error) {
+func (s userServiceInstrumentingService) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (resp string, err error) {
 	defer func(begin time.Time) {
 		s.is.instrument(begin, "UpdateUserAccess", err)
 	}(time.Now())

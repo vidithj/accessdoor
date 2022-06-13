@@ -105,13 +105,13 @@ func (mw userLoggingMiddleware) GetUser(ctx context.Context, username string) (r
 	return mw.next.GetUser(ctx, username)
 }
 
-func (mw userLoggingMiddleware) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (err error) {
+func (mw userLoggingMiddleware) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (resp string, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log("method", "UpdateUserAccessProxy", "took", time.Since(begin), "err", err)
 	}(time.Now())
 	return mw.next.UpdateUserAccess(ctx, req)
 }
-func (mw userLoggingMiddleware) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (resp bool, err error) {
+func (mw userLoggingMiddleware) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (resp string, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log("method", "DoorAuthenticateProxy", "took", time.Since(begin), "err", err)
 	}(time.Now())

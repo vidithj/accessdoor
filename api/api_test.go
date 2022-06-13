@@ -63,7 +63,7 @@ func TestFormatEvents(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actual := FormatEvaents(test.userinfo, test.events)
+			actual := FormatEvents(test.userinfo, test.events)
 			if diff := cmp.Diff(actual, test.response, cmpopts.EquateEmpty()); diff != "" {
 				t.Fatalf("differs: (-got +want)\n%s", diff)
 			}
