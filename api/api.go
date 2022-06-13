@@ -8,7 +8,13 @@ import (
 )
 
 func FormatEvents(usrinfo usermodel.User, events eventmodel.Events) model.UserResponse {
-	formattedevent := make([]map[string]string, len(events.Events))
+	if len(events.Events) == 0 {
+		return model.UserResponse{
+			UserInfo: usrinfo,
+			Events:   []map[string]string{},
+		}
+	}
+	formattedevent := []map[string]string{}
 	for _, val := range events.Events {
 		for key, unixtime := range val {
 			timeStamp := time.Unix(unixtime, 0)

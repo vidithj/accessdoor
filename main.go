@@ -68,7 +68,7 @@ func main() {
 
 	var logger log.Logger
 	{
-		logger = log.NewJSONLogger(os.Stdout)
+		logger = log.NewJSONLogger(sysLogger)
 		logger = log.With(logger, "serviceName", *serviceName)
 		logger = log.With(logger, "ip", *httpAddr)
 		logger = log.With(logger, "ts", log.DefaultTimestampUTC)
@@ -131,17 +131,17 @@ func main() {
 	eventsService = base.NewEventsProxyLoggingMiddleware(logger)(eventsService)
 	eventsService = base.NewEventsProxyInstrumentingService(labelNames,
 		prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Name:        "outbound_request_count",
+			Name:        "proxy_request_count",
 			Help:        "Number of requests received.",
 			ConstLabels: constLabels,
 		}, labelNames),
 		prometheus.NewCounterFrom(stdprometheus.CounterOpts{
-			Name:        "outbound_err_count",
+			Name:        "proxy_outbound_err_count",
 			Help:        "Number of errors.",
 			ConstLabels: constLabels,
 		}, labelNames),
 		prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
-			Name:        "outbound_request_latency_seconds",
+			Name:        "proxy_outbound_request_latency_seconds",
 			Help:        "Total duration of requests in request_latency_seconds.",
 			ConstLabels: constLabels,
 		}, labelNames))(eventsService)
