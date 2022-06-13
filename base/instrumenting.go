@@ -1,7 +1,9 @@
 package base
 
 import (
+	"accessdoor/model"
 	"context"
+	eventmodel "events/model"
 	"time"
 	usermodel "users/model"
 
@@ -45,7 +47,7 @@ func (s instrumentingService) instrument(begin time.Time, methodName string, err
 	}
 }
 
-func (s instrumentingService) GetUser(ctx context.Context, username string) (res usermodel.User, err error) {
+func (s instrumentingService) GetUser(ctx context.Context, username string) (res model.UserResponse, err error) {
 	defer func(begin time.Time) {
 		s.instrument(begin, "GetUser", err)
 	}(time.Now())
@@ -63,4 +65,81 @@ func (s instrumentingService) DoorAuthenticate(ctx context.Context, req usermode
 		s.instrument(begin, "DoorAuthenticate", err)
 	}(time.Now())
 	return s.next.DoorAuthenticate(ctx, req)
+}
+
+type UserServiceInstrumentingService func(UsersService) UsersService
+
+type userServiceInstrumentingService struct {
+	is   instrumentingService
+	next UsersService
+}
+
+func NewUsersProxyInstrumentingService(labelNames []string, counter metrics.Counter, errCounter metrics.Counter, latencyHistogram metrics.Histogram) UserServiceInstrumentingService {
+	return func(next UsersService) UsersService {
+		return userServiceInstrumentingService{
+			is: instrumentingService{
+				labelNames:     labelNames,
+				requestCount:   counter,
+				errCount:       errCounter,
+				requestLatency: latencyHistogram,
+			},
+			next: next,
+		}
+	}
+}
+
+func (s userServiceInstrumentingService) GetUser(ctx context.Context, username string) (resp usermodel.User, err error) {
+	defer func(begin time.Time) {
+		s.is.instrument(begin, "GetUser", err)
+	}(time.Now())
+	return s.next.GetUser(ctx, username)
+}
+
+func (s userServiceInstrumentingService) DoorAuthenticate(ctx context.Context, req usermodel.DoorAuthenticate) (resp bool, err error) {
+	defer func(begin time.Time) {
+		s.is.instrument(begin, "DoorAuthenticate", err)
+	}(time.Now())
+	return s.next.DoorAuthenticate(ctx, req)
+}
+
+func (s userServiceInstrumentingService) UpdateUserAccess(ctx context.Context, req usermodel.UpdateAccessRequest) (err error) {
+	defer func(begin time.Time) {
+		s.is.instrument(begin, "UpdateUserAccess", err)
+	}(time.Now())
+	return s.next.UpdateUserAccess(ctx, req)
+}
+
+type EventsServiceInstrumentingService func(EventsService) EventsService
+
+type eventsServiceInstrumentingService struct {
+	is   instrumentingService
+	next EventsService
+}
+
+func NewEventsProxyInstrumentingService(labelNames []string, counter metrics.Counter, errCounter metrics.Counter, latencyHistogram metrics.Histogram) EventsServiceInstrumentingService {
+	return func(next EventsService) EventsService {
+		return eventsServiceInstrumentingService{
+			is: instrumentingService{
+				labelNames:     labelNames,
+				requestCount:   counter,
+				errCount:       errCounter,
+				requestLatency: latencyHistogram,
+			},
+			next: next,
+		}
+	}
+}
+
+func (s eventsServiceInstrumentingService) GetEvents(ctx context.Context, username string) (resp eventmodel.Events, err error) {
+	defer func(begin time.Time) {
+		s.is.instrument(begin, "GetEvents", err)
+	}(time.Now())
+	return s.next.GetEvents(ctx, username)
+}
+
+func (s eventsServiceInstrumentingService) UpdateEvents(ctx context.Context, request eventmodel.UpdateEventRequest) (err error) {
+	defer func(begin time.Time) {
+		s.is.instrument(begin, "UpdateEvents", err)
+	}(time.Now())
+	return s.next.UpdateEvents(ctx, request)
 }

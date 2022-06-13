@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	eventmodel "events/model"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -40,6 +41,72 @@ func MakeProxyEndpoints(method string, config ProxyConfig, encoder kithttp.Encod
 	endpointer = append(endpointer, e)
 	balancer := lb.NewRoundRobin(endpointer)
 	return lb.Retry(config.MaxAttempts, config.MaxTime, balancer)
+}
+
+type EventsProxy func(EventsService) EventsService
+
+func NewEventsProxy(ctx context.Context, geteventconfig, updateventconfig ProxyConfig, logger log.Logger) EventsProxy {
+	if geteventconfig.URL == nil || updateventconfig.URL == nil {
+		return func(next EventsService) EventsService { return next }
+	}
+
+	getEventProxy := MakeProxyEndpoints(geteventconfig.Method, geteventconfig, encodegetUsersInfoRequest, decodeGetEventResponse, logger)
+	updateEventProxy := MakeProxyEndpoints(updateventconfig.Method, updateventconfig, encodePOSTRequest, decodeUpdateEventsResponse, logger)
+
+	return func(next EventsService) EventsService {
+		return &eventsService{
+			Context:              ctx,
+			GetEventsEndpoint:    getEventProxy,
+			UpdateEventsEndpoint: updateEventProxy,
+			EventsService:        next,
+		}
+	}
+}
+
+type EventsService interface {
+	GetEvents(ctx context.Context, username string) (eventmodel.Events, error)
+	UpdateEvents(ctx context.Context, request eventmodel.UpdateEventRequest) (err error)
+}
+
+type eventsService struct {
+	context.Context
+	GetEventsEndpoint    endpoint.Endpoint
+	UpdateEventsEndpoint endpoint.Endpoint
+	EventsService
+}
+
+func (s eventsService) GetEvents(ctx context.Context, username string) (eventmodel.Events, error) {
+	response, err := s.GetEventsEndpoint(ctx, username)
+	if err != nil {
+		return eventmodel.Events{}, err
+	}
+	return response.(eventmodel.Events), nil
+}
+func (s eventsService) UpdateEvents(ctx context.Context, request eventmodel.UpdateEventRequest) (err error) {
+	_, err = s.UpdateEventsEndpoint(ctx, request)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func decodeGetEventResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Status code incorrect for Get Events. Expected: %v received %v", http.StatusOK, r.StatusCode)
+	}
+	var response eventmodel.Events
+	err := json.NewDecoder(r.Body).Decode(&response)
+	return response, err
+}
+func decodeUpdateEventsResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Status code incorrect for Update Events. Expected: %v received %v", http.StatusOK, r.StatusCode)
+	}
+	var response string
+	err := json.NewDecoder(r.Body).Decode(&response)
+	return response, err
+
 }
 
 type UsersProxy func(UsersService) UsersService

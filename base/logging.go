@@ -1,7 +1,9 @@
 package base
 
 import (
+	"accessdoor/model"
 	"context"
+	eventmodel "events/model"
 	"time"
 	usermodel "users/model"
 
@@ -61,7 +63,7 @@ func xff(ctx context.Context) string {
 	xff, _ := ctx.Value(http.ContextKeyRequestXForwardedFor).(string)
 	return xff
 }
-func (mw loggingMiddleware) GetUser(ctx context.Context, username string) (res usermodel.User, err error) {
+func (mw loggingMiddleware) GetUser(ctx context.Context, username string) (res model.UserResponse, err error) {
 	defer func(begin time.Time) {
 		mw.logger.Log("method", "GetUser", "took", time.Since(begin), "err", err)
 	}(time.Now())
@@ -114,4 +116,32 @@ func (mw userLoggingMiddleware) DoorAuthenticate(ctx context.Context, req usermo
 		mw.logger.Log("method", "DoorAuthenticateProxy", "took", time.Since(begin), "err", err)
 	}(time.Now())
 	return mw.next.DoorAuthenticate(ctx, req)
+}
+
+func NewEventsProxyLoggingMiddleware(logger log.Logger) EventsProxy {
+	return func(next EventsService) EventsService {
+		return &eventsLoggingMiddleware{
+			next:   next,
+			logger: logger,
+		}
+	}
+}
+
+type eventsLoggingMiddleware struct {
+	next   EventsService
+	logger log.Logger
+}
+
+func (mw eventsLoggingMiddleware) GetEvents(ctx context.Context, username string) (resp eventmodel.Events, err error) {
+	defer func(begin time.Time) {
+		mw.logger.Log("method", "GetEvents", "took", time.Since(begin), "err", err)
+	}(time.Now())
+	return mw.next.GetEvents(ctx, username)
+}
+
+func (mw eventsLoggingMiddleware) UpdateEvents(ctx context.Context, request eventmodel.UpdateEventRequest) (err error) {
+	defer func(begin time.Time) {
+		mw.logger.Log("method", "UpdateEvents", "took", time.Since(begin), "err", err)
+	}(time.Now())
+	return mw.next.UpdateEvents(ctx, request)
 }

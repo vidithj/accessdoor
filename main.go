@@ -25,6 +25,7 @@ import (
 const (
 	UsersServiceName  = "users"
 	EventsServiceName = "events"
+	httpurl           = "http://"
 )
 
 var (
@@ -48,8 +49,10 @@ func main() {
 		serverTimeout        = flag.Int64("service.timeout", 20000, "service timeout in milliseconds")
 		sysLogAddress        = flag.String("syslog.address", "localhost:514", "default location for the syslogger")
 		usersgetuserURL      = flag.String("proxy.getuserurl", "/users/v1/getuser", "user proxy url")
-		usersauthenticateURL = flag.String("proxy.authenticateurl", "/users/v1/updateuseraccess", "default location for the syslogger")
-		usersupdateaccessURL = flag.String("proxy.updatedaccess", "/users/v1/authenticate", "default location for the syslogger")
+		usersauthenticateURL = flag.String("proxy.authenticateurl", "/users/v1/updateuseraccess", "user proxy url")
+		usersupdateaccessURL = flag.String("proxy.updatedaccess", "/users/v1/authenticate", "user proxy url")
+		eventsupdatURL       = flag.String("proxy.eventupdate", "/events/v1/updateevent", "events proxy url")
+		geteventsURL         = flag.String("proxy.getevent", "/events/v1/getevents", "events proxy url")
 		maxAttempts          = flag.Int("outbound.service.attempts", 1, "max attempts for API")
 		apiMaxTime           = flag.Int("outbound.service.maxtime", 50000, "maxTime for API in milliseconds")
 	)
@@ -81,10 +84,11 @@ func main() {
 	//get service ip from consul. since the instance ips are dynamic using consul agent to fetch them.
 	for service, _ := range proxyservices {
 		serviceinfo, _, _ := consulClient.Health().Service(service, "", true, nil)
-		proxyservices[service] = serviceinfo[0].Service.Address + ":" + strconv.Itoa(serviceinfo[0].Service.Port)
+		proxyservices[service] = httpurl + serviceinfo[0].Service.Address + ":" + strconv.Itoa(serviceinfo[0].Service.Port)
 	}
-
-	getuserinfoURL, err := url.Parse("localhost:8081" + *usersgetuserURL)
+	labelNames := []string{"method"}
+	constLabels := map[string]string{"serviceName": *serviceName, "version": *version, "dataType": *dataType}
+	getuserinfoURL, err := url.Parse(proxyservices[UsersServiceName] + *usersgetuserURL)
 	if err != nil {
 		logger.Log("error while parsing getuserinfoURL" + err.Error())
 	}
@@ -98,6 +102,49 @@ func main() {
 	if err != nil {
 		logger.Log("error while parsing updateuseraccessURL" + err.Error())
 	}
+
+	updateeventURL, err := url.Parse(proxyservices[EventsServiceName] + *eventsupdatURL)
+	if err != nil {
+		logger.Log("error while parsing updateevents" + err.Error())
+	}
+
+	eventsgetURL, err := url.Parse(proxyservices[EventsServiceName] + *geteventsURL)
+	if err != nil {
+		logger.Log("error while parsing eventsget" + err.Error())
+	}
+
+	var eventsService base.EventsService
+	eventsService = base.NewEventsProxy(context.Background(),
+		base.ProxyConfig{
+			URL:         eventsgetURL,
+			Method:      http.MethodGet,
+			MaxAttempts: *maxAttempts,
+			MaxTime:     time.Duration(*apiMaxTime) * time.Millisecond,
+		},
+		base.ProxyConfig{
+			URL:         updateeventURL,
+			Method:      http.MethodPost,
+			MaxAttempts: *maxAttempts,
+			MaxTime:     time.Duration(*apiMaxTime) * time.Millisecond,
+		},
+		logger)(eventsService)
+	eventsService = base.NewEventsProxyLoggingMiddleware(logger)(eventsService)
+	eventsService = base.NewEventsProxyInstrumentingService(labelNames,
+		prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Name:        "outbound_request_count",
+			Help:        "Number of requests received.",
+			ConstLabels: constLabels,
+		}, labelNames),
+		prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Name:        "outbound_err_count",
+			Help:        "Number of errors.",
+			ConstLabels: constLabels,
+		}, labelNames),
+		prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
+			Name:        "outbound_request_latency_seconds",
+			Help:        "Total duration of requests in request_latency_seconds.",
+			ConstLabels: constLabels,
+		}, labelNames))(eventsService)
 
 	var usersService base.UsersService
 	usersService = base.NewUsersProxy(context.Background(),
@@ -121,12 +168,27 @@ func main() {
 		},
 		logger)(usersService)
 	usersService = base.NewUsersProxyLoggingMiddleware(logger)(usersService)
-	usersService = base.NewUsersProxyInstrumentingService(), usersService)
+	usersService = base.NewUsersProxyInstrumentingService(labelNames,
+		prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Name:        "outbound_request_count",
+			Help:        "Number of requests received.",
+			ConstLabels: constLabels,
+		}, labelNames),
+		prometheus.NewCounterFrom(stdprometheus.CounterOpts{
+			Name:        "outbound_err_count",
+			Help:        "Number of errors.",
+			ConstLabels: constLabels,
+		}, labelNames),
+		prometheus.NewSummaryFrom(stdprometheus.SummaryOpts{
+			Name:        "outbound_request_latency_seconds",
+			Help:        "Total duration of requests in request_latency_seconds.",
+			ConstLabels: constLabels,
+		}, labelNames))(usersService)
+
 	var s base.Service
 	{
-		labelNames := []string{"method"}
-		constLabels := map[string]string{"serviceName": *serviceName, "version": *version, "dataType": *dataType}
-		s = base.NewService(logger, usersService)
+
+		s = base.NewService(logger, usersService, eventsService)
 		s = base.NewLoggingMiddleware(logger)(s)
 		s = base.NewInstrumentingService(labelNames, prometheus.NewCounterFrom(stdprometheus.CounterOpts{
 			Name:        "request_count",
